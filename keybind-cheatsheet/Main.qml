@@ -60,20 +60,18 @@ Item {
         short: pluginApi?.tr("error.labwc-not-supported"),
         detail: pluginApi?.tr("error.labwc-detail")
       },
-      "mango": {
-        short: pluginApi?.tr("error.mango-not-supported"),
-        detail: pluginApi?.tr("error.mango-detail")
-      },
       "unknown": {
         short: pluginApi?.tr("error.unknown-compositor"),
         detail: pluginApi?.tr("error.unknown-detail")
       }
     };
-
     return messages[compositor] || messages["unknown"];
   }
 
   property bool parserStarted: false
+
+  // Bug 4 fix: version counter so Panel.qml can react to data updates
+  property int cheatsheetDataVersion: 0
 
   // Memory leak prevention: cleanup on destruction
   Component.onDestruction: {
@@ -86,10 +84,13 @@ Item {
     if (niriReadProcess.running) niriReadProcess.running = false;
     if (hyprGlobProcess.running) hyprGlobProcess.running = false;
     if (hyprReadProcess.running) hyprReadProcess.running = false;
+    if (mangoGlobProcess.running) mangoGlobProcess.running = false;
+    if (mangoReadProcess.running) mangoReadProcess.running = false;
 
     // Clear process buffers
     niriGlobProcess.expandedFiles = [];
     hyprGlobProcess.expandedFiles = [];
+    mangoGlobProcess.expandedFiles = [];
     currentLines = [];
   }
 
@@ -100,6 +101,9 @@ Item {
     currentLines = [];
     collectedBinds = {};
     parseDepthCounter = 0;
+    if (mangoGlobProcess.running) mangoGlobProcess.running = false;
+    if (mangoReadProcess.running) mangoReadProcess.running = false;
+    mangoGlobProcess.expandedFiles = [];
   }
 
   // Refresh function - accessible from mainInstance
@@ -139,7 +143,7 @@ Item {
 
     // Detect compositor using CompositorService
     var compositorName = getCurrentCompositor();
-    if (!CompositorService.isHyprland && !CompositorService.isNiri) {
+    if (!CompositorService.isHyprland && !CompositorService.isNiri && !CompositorService.isMango) {
       isCurrentlyParsing = false;
 
       Logger.w("KeybindCheatsheet", "Unsupported compositor:", compositorName);
@@ -174,18 +178,21 @@ Item {
     var filePath;
     if (CompositorService.isHyprland) {
       filePath = pluginApi?.pluginSettings?.hyprlandConfigPath || (homeDir + "/.config/hypr/hyprland.conf");
-      filePath = filePath.replace(/^~/, homeDir);
     } else if (CompositorService.isNiri) {
       filePath = pluginApi?.pluginSettings?.niriConfigPath || (homeDir + "/.config/niri/config.kdl");
-      filePath = filePath.replace(/^~/, homeDir);
+    } else if (CompositorService.isMango) {
+      filePath = pluginApi?.pluginSettings?.mangoConfigPath || (homeDir + "/.config/mango/config.conf");
     }
 
+    filePath = filePath.replace(/^~/, homeDir);
     filesToParse = [filePath];
 
     if (CompositorService.isHyprland) {
       parseNextHyprlandFile();
-    } else {
+    } else if (CompositorService.isNiri) {
       parseNextNiriFile();
+    } else if (CompositorService.isMango) {
+      parseNextMangoFile();
     }
   }
 
@@ -285,9 +292,11 @@ Item {
 
     onExited: (exitCode, exitStatus) => {
       if (exitCode === 0 && root.currentLines.length > 0) {
-        // First pass: find includes
+        // First pass: find includes (Bug 1: skip commented-out lines)
         for (var i = 0; i < root.currentLines.length; i++) {
           var line = root.currentLines[i];
+          // Bug 1 fix: skip lines starting with // (they are comments, not active includes)
+          if (line.trim().startsWith("//")) continue;
           var includeMatch = line.match(/(?:include|source)\s+"([^"]+)"/i);
           if (includeMatch) {
             var includePath = includeMatch[1];
@@ -297,6 +306,21 @@ Item {
             }
           }
         }
+
+        // Bug 2 fix: auto-discover standard Noctalia/common keybind files from the config dir
+        var configDir = root.getDirectoryFromPath(currentFilePath);
+        var standardFiles = [
+          configDir + "/keybindings.common.kdl",
+          configDir + "/keybindings.noctalia.kdl"
+        ];
+        for (var s = 0; s < standardFiles.length; s++) {
+          var sf = standardFiles[s];
+          if (!root.parsedFiles[sf] && root.filesToParse.indexOf(sf) === -1) {
+            // We optimistically add them; parseNextNiriFile will skip if the cat fails
+            root.filesToParse.push(sf);
+          }
+        }
+
         // Second pass: parse keybinds from this file
         root.parseNiriFileContent(root.currentLines.join("\n"));
       }
@@ -381,8 +405,9 @@ Item {
 
       // If we're not currently parsing a multiline bind
       if (currentBindKey === null) {
-        // Try to match a keybind start: Mod+Key or Mod+Key attributes { or Mod+Key { action; }
-        var bindStartMatch = line.match(/^([A-Za-z0-9_+]+)\s*((?:[a-z\-]+=(?:"[^"]*"|[1-9][0-9]*|true|false)\s*)*)\{(.*)$/);
+        // Try to match a keybind start: Mod+Key or "Mod+Key" attributes { or Mod+Key { action; }
+        // Bug 3 fix: support optional surrounding quotes on the key combo (e.g. "Mod+Return")
+        var bindStartMatch = line.match(/^"?([A-Za-z0-9_+]+)"?\s*((?:[a-z\-]+=(?:"[^"]*"|[1-9][0-9]*|true|false)\s*)*)\{(.*)$/);
 
         if (bindStartMatch) {
           currentBindKey = bindStartMatch[1];
@@ -1023,7 +1048,333 @@ Item {
       pluginApi.pluginSettings.cheatsheetData = data;
       pluginApi.pluginSettings.detectedCompositor = compositor;
       pluginApi.saveSettings();
+      // Bug 4 fix: bump version counter so Panel.qml re-evaluates its data binding
+      cheatsheetDataVersion++;
     }
+  }
+
+  // ========== MANGO LOOKUP TABLES ==========
+  readonly property var mangoKeyNameMap: ({
+    "Return": "Enter", "return": "Enter",
+    "equal": "=", "minus": "-", "plus": "+",
+    "space": "Space", "comma": ",", "period": ".",
+    "semicolon": ";", "apostrophe": "'", "grave": "`",
+    "slash": "/", "backslash": "\\",
+    "bracketleft": "[", "bracketright": "]",
+    "Escape": "Esc", "escape": "Esc"
+  })
+
+  readonly property var mangoAxisMap: ({
+    "UP": "Scroll Up", "DOWN": "Scroll Down",
+    "LEFT": "Scroll Left", "RIGHT": "Scroll Right"
+  })
+
+  readonly property var mangoButtonMap: ({
+    "BTN_LEFT": "Left Click", "BTN_RIGHT": "Right Click",
+    "BTN_MIDDLE": "Middle Click", "BTN_SIDE": "Mouse Side",
+    "BTN_EXTRA": "Mouse Extra"
+  })
+
+  readonly property var mangoNoArgActions: ({
+    "killclient": "Close window",
+    "togglefullscreen": "Toggle fullscreen",
+    "togglemaximizescreen": "Maximize",
+    "togglefloating": "Toggle floating",
+    "reload_config": "Reload config",
+    "toggleoverview": "Toggle overview",
+    "quit": "Quit compositor",
+    "switch_proportion_preset": "Cycle column width",
+    "switch_keyboard_layout": "Switch keyboard layout",
+    "zoom": "Zoom",
+    "restart": "Restart",
+    "incnmaster": "Increase masters",
+    "switch_layout": "Switch layout"
+  })
+
+  readonly property var mangoDirActions: ({
+    "focusdir": "Focus",
+    "exchange_client": "Swap",
+    "focusmon": "Focus Monitor",
+    "tagmon": "Send to Monitor"
+  })
+
+  // ========== MANGO RECURSIVE PARSING ==========
+  function parseNextMangoFile() {
+    if (parseDepthCounter >= maxParseDepth) {
+      Logger.w("KeybindCheatsheet", "Mango parser hit max recursion depth (" + maxParseDepth + "), aborting");
+      isCurrentlyParsing = false;
+      clearParsingData();
+      return;
+    }
+    parseDepthCounter++;
+
+    if (filesToParse.length === 0) {
+      finalizeMangoBinds();
+      return;
+    }
+
+    var nextFile = filesToParse.shift();
+
+    // Handle glob patterns
+    if (isGlobPattern(nextFile)) {
+      mangoGlobProcess.expandedFiles = [];
+      mangoGlobProcess.command = ["sh", "-c", 'for f in $1; do [ -f "$f" ] && echo "$f"; done', "sh", nextFile];
+      mangoGlobProcess.running = true;
+      return;
+    }
+
+    if (parsedFiles[nextFile]) {
+      parseNextMangoFile();
+      return;
+    }
+
+    parsedFiles[nextFile] = true;
+    currentLines = [];
+    mangoReadProcess.currentFilePath = nextFile;
+    mangoReadProcess.command = ["cat", nextFile];
+    mangoReadProcess.running = true;
+  }
+
+  Process {
+    id: mangoGlobProcess
+    property var expandedFiles: []
+    running: false
+
+    stdout: SplitParser {
+      onRead: data => {
+        var trimmed = data.trim();
+        if (trimmed.length > 0) {
+          if (mangoGlobProcess.expandedFiles.length < 100) {
+            mangoGlobProcess.expandedFiles.push(trimmed);
+          }
+        }
+      }
+    }
+
+    onExited: {
+      for (var i = 0; i < expandedFiles.length; i++) {
+        var path = expandedFiles[i];
+        if (!root.parsedFiles[path] && root.filesToParse.indexOf(path) === -1) {
+          root.filesToParse.push(path);
+        }
+      }
+      expandedFiles = [];
+      root.parseNextMangoFile();
+    }
+  }
+
+  Process {
+    id: mangoReadProcess
+    property string currentFilePath: ""
+    running: false
+
+    stdout: SplitParser {
+      onRead: data => {
+        if (root.currentLines.length < 10000) {
+          root.currentLines.push(data);
+        }
+      }
+    }
+
+    onExited: (exitCode, exitStatus) => {
+      if (exitCode === 0 && root.currentLines.length > 0) {
+        // First pass: find source/source-optional includes
+        for (var i = 0; i < root.currentLines.length; i++) {
+          var line = root.currentLines[i].trim();
+          // Skip commented lines
+          var commentPos = root.findMangoUnquotedComment(line);
+          var effectiveLine = commentPos >= 0 ? line.substring(0, commentPos).trim() : line;
+
+          var srcMatch = effectiveLine.match(/^source-optional\s*=\s*(.+)$/) ||
+                         effectiveLine.match(/^source\s*=\s*(.+)$/);
+          if (srcMatch) {
+            var srcPath = srcMatch[1].trim();
+            var resolvedSrc = root.resolveRelativePath(currentFilePath, srcPath);
+            if (isGlobPattern(resolvedSrc)) {
+              if (root.filesToParse.indexOf(resolvedSrc) === -1) {
+                root.filesToParse.push(resolvedSrc);
+              }
+            } else if (!root.parsedFiles[resolvedSrc] && root.filesToParse.indexOf(resolvedSrc) === -1) {
+              root.filesToParse.push(resolvedSrc);
+            }
+          }
+        }
+        // Second pass: parse keybinds from this file
+        root.parseMangoConfig(root.currentLines.join("\n"));
+      }
+      root.currentLines = [];
+      root.parseNextMangoFile();
+    }
+  }
+
+  function findMangoUnquotedComment(str) {
+    var inSingle = false;
+    var inDouble = false;
+    for (var i = 0; i < str.length; i++) {
+      var ch = str[i];
+      if (ch === "'" && !inDouble) { inSingle = !inSingle; continue; }
+      if (ch === '"' && !inSingle) { inDouble = !inDouble; continue; }
+      if (ch === '#' && !inSingle && !inDouble) return i;
+    }
+    return -1;
+  }
+
+  function parseMangoConfig(text) {
+    var lines = text.split('\n');
+    var currentCategory = null;
+
+    for (var i = 0; i < lines.length; i++) {
+      var rawLine = lines[i];
+      var commentPos = findMangoUnquotedComment(rawLine);
+      var effectiveLine = commentPos >= 0 ? rawLine.substring(0, commentPos).trim() : rawLine.trim();
+
+      if (effectiveLine.length === 0) continue;
+
+      // Category detection: # Title (but only when not a bind line)
+      var categoryCandidate = extractMangoCategory(rawLine);
+      if (categoryCandidate !== null) {
+        currentCategory = categoryCandidate;
+        continue;
+      }
+
+      // bind=MODS,KEY,ACTION,ARGS
+      var bindMatch = effectiveLine.match(/^bind\s*=\s*(.+)$/);
+      if (bindMatch) {
+        var parts = bindMatch[1].split(',');
+        if (parts.length >= 3) {
+          var modStr = parts[0].trim();
+          var key = parts[1].trim();
+          var action = parts[2].trim();
+          var args = parts.length >= 4 ? parts.slice(3).join(',').trim() : "";
+          var cat = currentCategory || "General";
+          var formattedKeys = formatMangoKeyCombo(modStr, key, "bind");
+          var description = formatMangoAction(action, args);
+
+          if (!collectedBinds[cat]) collectedBinds[cat] = [];
+          collectedBinds[cat].push({ "keys": formattedKeys, "desc": description });
+        }
+        continue;
+      }
+
+      // axisbind=MODS,AXIS,ACTION,ARGS
+      var axisMatch = effectiveLine.match(/^axisbind\s*=\s*(.+)$/);
+      if (axisMatch) {
+        var axisParts = axisMatch[1].split(',');
+        if (axisParts.length >= 3) {
+          var aModStr = axisParts[0].trim();
+          var axis = axisParts[1].trim().toUpperCase();
+          var aAction = axisParts[2].trim();
+          var aArgs = axisParts.length >= 4 ? axisParts.slice(3).join(',').trim() : "";
+          var aCat = currentCategory || "General";
+          var aKey = mangoAxisMap[axis] || axis;
+          var aCombo = formatMangoKeyCombo(aModStr, aKey, "axis");
+          var aDesc = formatMangoAction(aAction, aArgs);
+
+          if (!collectedBinds[aCat]) collectedBinds[aCat] = [];
+          collectedBinds[aCat].push({ "keys": aCombo, "desc": aDesc });
+        }
+        continue;
+      }
+
+      // mousebind=MODS,BTN,ACTION,ARGS
+      var mouseMatch = effectiveLine.match(/^mousebind\s*=\s*(.+)$/);
+      if (mouseMatch) {
+        var mouseParts = mouseMatch[1].split(',');
+        if (mouseParts.length >= 3) {
+          var mModStr = mouseParts[0].trim();
+          var btn = mouseParts[1].trim().toUpperCase();
+          var mAction = mouseParts[2].trim();
+          var mArgs = mouseParts.length >= 4 ? mouseParts.slice(3).join(',').trim() : "";
+          var mCat = currentCategory || "Mouse";
+          var mKey = mangoButtonMap[btn] || btn;
+          var mCombo = formatMangoKeyCombo(mModStr, mKey, "mouse");
+          var mDesc = formatMangoAction(mAction, mArgs);
+
+          if (!collectedBinds[mCat]) collectedBinds[mCat] = [];
+          collectedBinds[mCat].push({ "keys": mCombo, "desc": mDesc });
+        }
+      }
+    }
+  }
+
+  function extractMangoCategory(line) {
+    var trimmed = line.trim();
+    // A category line is a standalone comment: # Category Name
+    // Must not look like a bind= line
+    if (!trimmed.startsWith('#')) return null;
+    // Strip the leading #
+    var rest = trimmed.substring(1).trim();
+    if (rest.length === 0) return null;
+    return rest;
+  }
+
+  function formatMangoKeyCombo(modStr, key, kind) {
+    var mods = [];
+    var modUpper = modStr.toUpperCase();
+    if (modUpper.indexOf("SUPER") !== -1) mods.push("Super");
+    if (modUpper.indexOf("SHIFT") !== -1) mods.push("Shift");
+    if (modUpper.indexOf("CTRL") !== -1 || modUpper.indexOf("CONTROL") !== -1) mods.push("Ctrl");
+    if (modUpper.indexOf("ALT") !== -1) mods.push("Alt");
+
+    // Map the key name if we have it
+    var mappedKey = (kind === "bind") ? (mangoKeyNameMap[key] || key) : key;
+
+    if (mods.length > 0) {
+      return mods.join(" + ") + " + " + mappedKey;
+    }
+    return mappedKey;
+  }
+
+  function formatMangoAction(action, args) {
+    // Check Noctalia IPC calls: spawn_shell with qs ipc call ...
+    if (args.indexOf("noctalia-shell") !== -1 && args.indexOf("ipc") !== -1) {
+      var ipcMatch = args.match(/ipc\s+call\s+(\w+)\s+(\w+)/);
+      if (ipcMatch) {
+        var ipcKey = ipcMatch[1] + " " + ipcMatch[2];
+        if (noctaliaIpcLabels[ipcKey]) return noctaliaIpcLabels[ipcKey];
+        return ipcMatch[1] + ": " + ipcMatch[2];
+      }
+    }
+
+    // No-arg actions
+    if (mangoNoArgActions[action]) return mangoNoArgActions[action];
+
+    // Direction actions
+    if (mangoDirActions[action]) {
+      var dir = args ? args.toUpperCase() : "";
+      return mangoDirActions[action] + (dir ? " " + dir : "");
+    }
+
+    // spawn / spawn_shell
+    if (action === "spawn" || action === "spawn_shell") {
+      return args ? "Run: " + args : "Run command";
+    }
+
+    // workspace / move to workspace
+    if (action === "workspace") return args ? "Workspace " + args : "Switch workspace";
+    if (action === "movetoworkspace") return args ? "Move to workspace " + args : "Move to workspace";
+    if (action === "movetoworkspacesilent") return args ? "Move (silent) to workspace " + args : "Move to workspace";
+
+    // Generic fallback: convert snake_case / camelCase to readable
+    return action.replace(/_/g, ' ').replace(/([A-Z])/g, ' $1').trim()
+                 .replace(/\b\w/g, function(l) { return l.toUpperCase(); });
+  }
+
+  function finalizeMangoBinds() {
+    var categories = [];
+    for (var cat in collectedBinds) {
+      if (collectedBinds[cat].length > 0) {
+        categories.push({ "title": cat, "binds": collectedBinds[cat] });
+      }
+    }
+
+    if (categories.length === 0) {
+      Logger.w("KeybindCheatsheet", "Mango parser produced no binds; check config path and bind= directives");
+    }
+
+    saveToDb(categories);
+    isCurrentlyParsing = false;
+    clearParsingData();
   }
 
   IpcHandler {

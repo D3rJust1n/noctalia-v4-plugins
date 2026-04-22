@@ -22,13 +22,35 @@ Item {
   property bool autoHeight: cfg.autoHeight ?? defaults.autoHeight ?? true
   property int columnCount: cfg.columnCount ?? defaults.columnCount ?? 3
 
-  property var rawCategories: pluginApi?.pluginSettings?.cheatsheetData || []
+  // Bug 4 fix: re-evaluate rawCategories whenever Main.qml increments cheatsheetDataVersion
+  property int _dataVersion: pluginApi?.mainInstance?.cheatsheetDataVersion ?? 0
+  property var rawCategories: {
+    var _v = _dataVersion; // force QML dependency on version counter
+    return pluginApi?.pluginSettings?.cheatsheetData || [];
+  }
   property var categories: []
-  
 
-  
+  // Bug 5 fix: timeout if parsing never completes
+  property bool loadingTimedOut: false
+
+  Timer {
+    id: loadingTimeoutTimer
+    interval: 4000
+    repeat: false
+    running: false
+    onTriggered: {
+      if (root.isLoading) {
+        root.loadingTimedOut = true;
+      }
+    }
+  }
+
   Component.onCompleted: {
     categories = processCategories(rawCategories);
+    // Start timeout timer if we have no data yet
+    if (root.isLoading) {
+      loadingTimeoutTimer.start();
+    }
   }
 
 
@@ -46,6 +68,7 @@ Item {
   Component.onDestruction: {
     // Stop timer to prevent firing after destruction
     columnUpdateDebounce.stop();
+    loadingTimeoutTimer.stop();
 
     // Clear column items
     columnItems = [];
@@ -209,6 +232,7 @@ Item {
         NText {
           text: CompositorService.isHyprland ? pluginApi?.tr("panel.title-hyprland") :
                 CompositorService.isNiri     ? pluginApi?.tr("panel.title-niri") :
+                CompositorService.isMango    ? pluginApi?.tr("panel.title-mango") :
                                                pluginApi?.tr("panel.title")
           font.pointSize: Style.fontSizeM
           font.weight: Font.Bold
@@ -253,7 +277,7 @@ Item {
     NText {
       id: loadingText
       anchors.centerIn: parent
-      text: pluginApi?.tr("panel.loading")
+      text: root.loadingTimedOut ? pluginApi?.tr("panel.loading-timeout") : pluginApi?.tr("panel.loading")
       visible: root.isLoading
       font.pointSize: Style.fontSizeL
       color: Color.mOnSurface

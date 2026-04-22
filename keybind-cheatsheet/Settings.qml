@@ -36,6 +36,7 @@ ColumnLayout {
   property string editModKeyVariable: cfg.modKeyVariable || defaults.modKeyVariable || "$mod"
   property string editHyprlandConfigPath: cfg.hyprlandConfigPath || defaults.hyprlandConfigPath || "~/.config/hypr/hyprland.conf"
   property string editNiriConfigPath: cfg.niriConfigPath || defaults.niriConfigPath || "~/.config/niri/config.kdl"
+  property string editMangoConfigPath: cfg.mangoConfigPath || defaults.mangoConfigPath || "~/.config/mango/config.conf"
   property bool editMergeSequentialBinds: cfg.mergeSequentialBinds ?? defaults.mergeSequentialBinds ?? true
   property bool editShowUndescribedBinds: cfg.showUndescribedBinds ?? defaults.showUndescribedBinds ?? false
   property bool editSplitLargeWorkspaceCategory: cfg.splitLargeWorkspaceCategory ?? defaults.splitLargeWorkspaceCategory ?? true
@@ -551,6 +552,51 @@ ColumnLayout {
               wrapMode: Text.WordWrap
             }
           }
+
+          Rectangle {
+            Layout.fillWidth: true
+            Layout.preferredHeight: 1
+            color: Color.mOutline
+            opacity: 0.3
+          }
+
+          ColumnLayout {
+            spacing: Style.marginXS
+
+            RowLayout {
+              spacing: Style.marginS
+              NIcon {
+                icon: "terminal"
+                pointSize: Style.fontSizeM
+                color: Color.mTertiary
+              }
+              NText {
+                text: pluginApi?.tr("settings.mango-path")
+                color: Color.mOnSurface
+                pointSize: Style.fontSizeM
+                font.weight: Style.fontWeightBold
+              }
+            }
+
+            NTextInput {
+              id: mangoPathInput
+              Layout.fillWidth: true
+              Layout.preferredHeight: Style.baseWidgetSize
+              text: root.editMangoConfigPath
+              placeholderText: "~/.config/mango/config.conf"
+              onTextChanged: {
+                if (text.length > 0) root.editMangoConfigPath = text;
+              }
+            }
+
+            NText {
+              Layout.fillWidth: true
+              text: pluginApi?.tr("settings.mango-format-hint")
+              color: Color.mOnSurfaceVariant
+              pointSize: Style.fontSizeXS
+              wrapMode: Text.WordWrap
+            }
+          }
         }
       }
 
@@ -597,6 +643,7 @@ ColumnLayout {
                 root.editModKeyVariable = defaults.modKeyVariable || "$mod";
                 root.editHyprlandConfigPath = defaults.hyprlandConfigPath || "~/.config/hypr/hyprland.conf";
                 root.editNiriConfigPath = defaults.niriConfigPath || "~/.config/niri/config.kdl";
+                root.editMangoConfigPath = defaults.mangoConfigPath || "~/.config/mango/config.conf";
                 root.editMergeSequentialBinds = defaults.mergeSequentialBinds ?? true;
                 root.editShowUndescribedBinds = defaults.showUndescribedBinds ?? false;
                 root.editSplitLargeWorkspaceCategory = defaults.splitLargeWorkspaceCategory ?? true;
@@ -607,6 +654,7 @@ ColumnLayout {
                 modVarInput.text = root.editModKeyVariable;
                 hyprlandPathInput.text = root.editHyprlandConfigPath;
                 niriPathInput.text = root.editNiriConfigPath;
+                mangoPathInput.text = root.editMangoConfigPath;
 
                 if (pluginApi && pluginApi.pluginSettings) {
                   pluginApi.pluginSettings.cheatsheetData = [];
@@ -677,6 +725,14 @@ ColumnLayout {
           NText {
             Layout.fillWidth: true
             text: pluginApi?.tr("settings.keybind-example-niri")
+            color: Color.mOnSurfaceVariant
+            pointSize: Style.fontSizeXS
+            wrapMode: Text.WordWrap
+          }
+
+          NText {
+            Layout.fillWidth: true
+            text: pluginApi?.tr("settings.keybind-example-mango")
             color: Color.mOnSurfaceVariant
             pointSize: Style.fontSizeXS
             wrapMode: Text.WordWrap
@@ -1158,6 +1214,7 @@ ColumnLayout {
     pluginApi.pluginSettings.modKeyVariable = root.editModKeyVariable;
     pluginApi.pluginSettings.hyprlandConfigPath = root.editHyprlandConfigPath;
     pluginApi.pluginSettings.niriConfigPath = root.editNiriConfigPath;
+    pluginApi.pluginSettings.mangoConfigPath = root.editMangoConfigPath;
     pluginApi.pluginSettings.mergeSequentialBinds = root.editMergeSequentialBinds;
     pluginApi.pluginSettings.showUndescribedBinds = root.editShowUndescribedBinds;
     pluginApi.pluginSettings.splitLargeWorkspaceCategory = root.editSplitLargeWorkspaceCategory;
