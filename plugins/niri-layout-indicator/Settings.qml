@@ -36,7 +36,10 @@ Item {
     }
   }
 
-  Component.onCompleted: resizeTimer.start()
+  Component.onCompleted: {
+    resizeTimer.start()
+    root.rebuildModels()
+  }
   Component.onDestruction: resizeTimer.stop()
 
   ColumnLayout {
@@ -52,6 +55,34 @@ Item {
     property string editDisplayMode: cfg.displayMode || defaults.displayMode || "text"
     property string editMiddleClickAction: cfg.middleClickAction || defaults.middleClickAction || "previous"
     property int editPollIntervalMs: cfg.pollIntervalMs ?? defaults.pollIntervalMs ?? 750
+    readonly property string currentLanguage: rootItem.pluginApi?.currentLanguage || "en"
+
+    function tr(key) {
+      return rootItem.pluginApi?.tr(key) || key
+    }
+
+    function rebuildModels() {
+      displayModeModel.clear()
+      displayModeModel.append({ "name": tr("settings.display.text"), "key": "text" })
+      displayModeModel.append({ "name": tr("settings.display.flag"), "key": "flag" })
+
+      middleClickModel.clear()
+      middleClickModel.append({ "name": tr("settings.middle.previous"), "key": "previous" })
+      middleClickModel.append({ "name": tr("settings.middle.toggle_display"), "key": "toggle-mode" })
+
+      pollIntervalModel.clear()
+      pollIntervalModel.append({ "name": "250 ms", "key": "250" })
+      pollIntervalModel.append({ "name": "500 ms", "key": "500" })
+      pollIntervalModel.append({ "name": "750 ms", "key": "750" })
+      pollIntervalModel.append({ "name": "1000 ms", "key": "1000" })
+      pollIntervalModel.append({ "name": "1500 ms", "key": "1500" })
+    }
+
+    onCurrentLanguageChanged: rebuildModels()
+
+    ListModel { id: displayModeModel }
+    ListModel { id: middleClickModel }
+    ListModel { id: pollIntervalModel }
 
     function saveSettings() {
       if (!rootItem.pluginApi)
@@ -71,7 +102,7 @@ Item {
 
     NText {
       Layout.fillWidth: true
-      text: "Niri Layout Indicator"
+      text: root.tr("settings.title")
       pointSize: Style.fontSizeXXL
       font.weight: Style.fontWeightBold
       color: Color.mOnSurface
@@ -79,7 +110,7 @@ Item {
 
     NText {
       Layout.fillWidth: true
-      text: "Keyboard layout indicator and switcher for niri."
+      text: root.tr("settings.description")
       color: Color.mOnSurfaceVariant
       pointSize: Style.fontSizeM
       wrapMode: Text.WordWrap
@@ -98,7 +129,7 @@ Item {
 
         NText {
           Layout.fillWidth: true
-          text: "Display mode"
+          text: root.tr("settings.display.title")
           pointSize: Style.fontSizeL
           font.weight: Style.fontWeightBold
           color: Color.mOnSurface
@@ -106,7 +137,7 @@ Item {
 
         NText {
           Layout.fillWidth: true
-          text: "Choose what the bar widget shows."
+          text: root.tr("settings.display.description")
           color: Color.mOnSurfaceVariant
           pointSize: Style.fontSizeS
           wrapMode: Text.WordWrap
@@ -118,10 +149,7 @@ Item {
           Layout.preferredWidth: 240 * Style.uiScaleRatio
           Layout.preferredHeight: Style.baseWidgetSize
 
-          model: ListModel {
-            ListElement { name: "Text: en, ru"; key: "text" }
-            ListElement { name: "Flag: 🇺🇸, 🇷🇺"; key: "flag" }
-          }
+          model: displayModeModel
 
           currentKey: root.editDisplayMode
 
@@ -145,7 +173,7 @@ Item {
 
         NText {
           Layout.fillWidth: true
-          text: "Middle click action"
+          text: root.tr("settings.middle.title")
           pointSize: Style.fontSizeL
           font.weight: Style.fontWeightBold
           color: Color.mOnSurface
@@ -153,7 +181,7 @@ Item {
 
         NText {
           Layout.fillWidth: true
-          text: "Choose what happens when you middle-click the widget."
+          text: root.tr("settings.middle.description")
           color: Color.mOnSurfaceVariant
           pointSize: Style.fontSizeS
           wrapMode: Text.WordWrap
@@ -165,10 +193,7 @@ Item {
           Layout.preferredWidth: 260 * Style.uiScaleRatio
           Layout.preferredHeight: Style.baseWidgetSize
 
-          model: ListModel {
-            ListElement { name: "Previous layout"; key: "previous" }
-            ListElement { name: "Toggle display mode"; key: "toggle-mode" }
-          }
+          model: middleClickModel
 
           currentKey: root.editMiddleClickAction
 
@@ -192,7 +217,7 @@ Item {
 
         NText {
           Layout.fillWidth: true
-          text: "Update interval"
+          text: root.tr("settings.update.title")
           pointSize: Style.fontSizeL
           font.weight: Style.fontWeightBold
           color: Color.mOnSurface
@@ -200,7 +225,7 @@ Item {
 
         NText {
           Layout.fillWidth: true
-          text: "How often the widget checks the active keyboard layout."
+          text: root.tr("settings.update.description")
           color: Color.mOnSurfaceVariant
           pointSize: Style.fontSizeS
           wrapMode: Text.WordWrap
@@ -212,13 +237,7 @@ Item {
           Layout.preferredWidth: 180 * Style.uiScaleRatio
           Layout.preferredHeight: Style.baseWidgetSize
 
-          model: ListModel {
-            ListElement { name: "250 ms"; key: "250" }
-            ListElement { name: "500 ms"; key: "500" }
-            ListElement { name: "750 ms"; key: "750" }
-            ListElement { name: "1000 ms"; key: "1000" }
-            ListElement { name: "1500 ms"; key: "1500" }
-          }
+          model: pollIntervalModel
 
           currentKey: root.editPollIntervalMs.toString()
 
