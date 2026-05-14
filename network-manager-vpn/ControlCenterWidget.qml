@@ -19,11 +19,11 @@ NIconButtonHot {
         ? pluginApi?.tr("common.connected")
         : pluginApi?.tr("common.disconnected")
 
-colorFg: {
-    const key = connectedCount > 0 ? connectedColor : disconnectedColor;
-    if (!key || key === "none") return Color.mPrimary;
-    return Color.resolveColorKeyOptional(key) ?? Color.mPrimary;
-}
+    colorFg: {
+        const key = connectedCount > 0 ? connectedColor : disconnectedColor;
+        if (!key || key === "none") return Color.mPrimary;
+        return Color.resolveColorKeyOptional(key) ?? Color.mPrimary;
+    }
 
     onClicked: pluginApi?.togglePanel(screen, this)
 }
