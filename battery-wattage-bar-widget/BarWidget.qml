@@ -25,16 +25,60 @@ Item {
     property real wattNum: 0.0
     property string batStatus: "Unknown"
     property string timeRemaining: "..."
+    
+    property string currentProfile: "balanced"
+    property int batteryThreshold: 80
 
     readonly property real contentWidth: layout.implicitWidth + ((typeof Style !== "undefined") ? Style.marginM * 2 : 16)
     readonly property real contentHeight: capsuleHeight
     implicitWidth: contentWidth
     implicitHeight: (typeof Style !== "undefined") ? Style.barHeight : 32
 
-    // Registra questa istanza nel pluginApi per renderla accessibile al Popup
     Component.onCompleted: {
         if (pluginApi) {
             pluginApi.mainInstance = root;
+        }
+        profileGetter.running = true;
+        thresholdLoader.reload();
+    }
+
+    Process {
+        id: profileGetter
+        command: ["powerprofilesctl", "get"]
+        onExited: (code) => {
+            if (code === 0 && stdout && stdout.text) {
+                root.currentProfile = stdout.text.trim();
+            }
+        }
+    }
+
+    function setPowerProfile(profile) {
+        root.currentProfile = profile;
+        profileSetter.command = ["powerprofilesctl", "set", profile];
+        profileSetter.running = true;
+    }
+
+    // Questa è la funzione che il motore QML non trova nel tuo pannello
+    function setBatteryThreshold(value) {
+        root.batteryThreshold = value;
+        thresholdSetter.command = ["sh", "-c", "echo " + value + " > /sys/class/power_supply/BAT0/charge_control_end_threshold"];
+        thresholdSetter.running = true;
+    }
+
+    Process {
+        id: thresholdSetter
+        onExited: (code) => {
+            if (code !== 0) {
+                console.log("Errore nella scrittura del battery threshold. Verifica i permessi udev.");
+            }
+        }
+    }
+
+    Process {
+        id: profileSetter
+        onExited: (code) => {
+            profileGetter.running = false;
+            profileGetter.running = true;
         }
     }
 
@@ -50,6 +94,24 @@ Item {
                 
                 batLoader.device = batName;
                 batLoader.reload();
+                
+                profileGetter.running = false;
+                profileGetter.running = true;
+            }
+        }
+    }
+
+    FileView {
+        id: thresholdLoader
+        path: "/sys/class/power_supply/BAT0/charge_control_end_threshold"
+        printErrors: false
+        onLoaded: {
+            let val = text();
+            if (val) {
+                let parsed = parseInt(val.trim());
+                if (!isNaN(parsed) && parsed >= 50 && parsed <= 100) {
+                    root.batteryThreshold = parsed;
+                }
             }
         }
     }
@@ -197,25 +259,6 @@ Item {
         anchors.fill: parent
         hoverEnabled: true
         cursorShape: Qt.PointingHandCursor
-        onEntered: {
-            if (typeof TooltipService !== "undefined" && typeof BarService !== "undefined") {
-                let labelTime = root.batStatus === "Charging" ? "Time to full" : "Time to empty";
-                let primaryColor = (typeof Color !== "undefined") ? Color.mPrimary : "#00ff00";
-                
-                let tooltipText = "<table style='width: 170px;'>" +
-                                  "<tr><td align='left'>Battery level</td><td align='right'><b>" + root.batPercent + "%</b></td></tr>" +
-                                  "<tr><td align='left'>Status</td><td align='right'><b>" + root.batStatus + "</b></td></tr>" +
-                                  "<tr><td align='left'>" + labelTime + "</td><td align='right' style='color:" + primaryColor + ";'><b>" + root.timeRemaining + "</b></td></tr>" +
-                                  "</table>";
-
-                TooltipService.show(root, tooltipText, BarService.getTooltipDirection())
-            }
-        }
-        onExited: {
-            if (typeof TooltipService !== "undefined") {
-                TooltipService.hide()
-            }
-        }
         onClicked: {
             if (pluginApi && typeof pluginApi.openPanel === "function") {
                 pluginApi.openPanel(root.screen, root)
