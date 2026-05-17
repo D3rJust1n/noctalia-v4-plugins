@@ -1,5 +1,6 @@
 import QtQuick
 import QtQuick.Layouts
+import Quickshell
 import Quickshell.Io
 import qs.Commons
 import qs.Widgets
@@ -10,7 +11,7 @@ Item {
     id: root
 
     property var pluginApi: null
-    property var screen: null
+    property ShellScreen screen: null
     property string widgetId: ""
     property string section: ""
     property int sectionWidgetIndex: -1
@@ -68,7 +69,7 @@ Item {
         id: thresholdSetter
         onExited: (code) => {
             if (code !== 0) {
-                console.log("Error writing battery threshold. Check udev permissions.");
+                Logger.error("Error writing battery threshold. Check udev permissions.");
             }
         }
     }

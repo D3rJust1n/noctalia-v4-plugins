@@ -22,7 +22,7 @@ Item {
     ColumnLayout {
         id: mainLayout
         anchors.centerIn: parent
-        spacing: 10
+        spacing: Style.marginM
 
         // --- CAPSULE 1: BATTERY INFO ---
         Rectangle {
@@ -33,22 +33,22 @@ Item {
             color: (typeof Color !== "undefined") ? Color.mSurfaceVariant : "#313244"
             radius: (typeof Style !== "undefined") ? (Style.capsuleRadius ?? Style.radiusM) : 6
             border.color: (typeof Style !== "undefined") ? Style.capsuleBorderColor : "#33ffffff"
-            border.width: 1
+            border.width: Style.capsuleBorderWidth
 
             RowLayout {
                 id: panelContent
                 anchors.centerIn: parent
                 anchors.margins: (typeof Style !== "undefined") ? Style.marginL : 16
-                spacing: 16
+                spacing: Style.marginL
 
                 ColumnLayout {
-                    spacing: 4
+                    spacing: Style.marginS
                     Layout.alignment: Qt.AlignVCenter
                     Layout.fillWidth: false
 
                     NIcon {
                         icon: (root.mainWidget && (root.mainWidget.batStatus === "Charging" || root.mainWidget.batStatus === "Full")) ? "battery-charging" : "battery-4"
-                        pointSize: 20
+                        pointSize: Style.fontSizeXL
                         color: (typeof Color !== "undefined") ? Color.mPrimary : "#3355ff"
                         Layout.alignment: Qt.AlignHCenter
                     }
@@ -70,7 +70,7 @@ Item {
                 }
 
                 ColumnLayout {
-                    spacing: 4
+                    spacing: Style.marginS
                     Layout.fillWidth: true
                     Layout.alignment: Qt.AlignVCenter
 
@@ -108,11 +108,11 @@ Item {
             color: (typeof Color !== "undefined") ? Color.mSurfaceVariant : "#313244"
             radius: (typeof Style !== "undefined") ? (Style.capsuleRadius ?? Style.radiusM) : 6
             border.color: (typeof Style !== "undefined") ? Style.capsuleBorderColor : "#33ffffff"
-            border.width: 1
+            border.width: Style.capsuleBorderWidth
 
             RowLayout {
                 anchors.centerIn: parent
-                spacing: 24
+                spacing: Style.marginL * 1.5
 
                 ProfileButton {
                     icon: "leaf"
@@ -146,17 +146,17 @@ Item {
             color: (typeof Color !== "undefined") ? Color.mSurfaceVariant : "#313244"
             radius: (typeof Style !== "undefined") ? (Style.capsuleRadius ?? Style.radiusM) : 6
             border.color: (typeof Style !== "undefined") ? Style.capsuleBorderColor : "#33ffffff"
-            border.width: 1
+            border.width: Style.capsuleBorderWidth
 
             RowLayout {
                 anchors.fill: parent
                 anchors.leftMargin: (typeof Style !== "undefined") ? Style.marginL : 16
                 anchors.rightMargin: (typeof Style !== "undefined") ? Style.marginL : 16
-                spacing: 12
+                spacing: Style.marginM
 
                 NIcon {
                     icon: "shield-heart"
-                    pointSize: 14
+                    pointSize: Style.fontSizeM
                     color: (typeof Color !== "undefined") ? Color.mOnSurfaceVariant : "#a6adc8"
                     Layout.alignment: Qt.AlignVCenter
                 }
@@ -169,9 +169,7 @@ Item {
 
                     readonly property real minVal: 50
                     readonly property real maxVal: 100
-                    
-                    // Reactive mapping to the core backend state, falling back to 80 only if hardware read hasn't finished
-                    property real currentVal: (root.mainWidget && root.mainWidget.batteryThreshold >= 50) ? root.mainWidget.batteryThreshold : 80
+                    property real currentVal: root.mainWidget ? root.mainWidget.batteryThreshold : 80
 
                     Rectangle {
                         id: track
@@ -179,13 +177,13 @@ Item {
                         anchors.right: parent.right
                         anchors.verticalCenter: parent.verticalCenter
                         height: 4 * Style.uiScaleRatio
-                        radius: 2
+                        radius: Style.radiusS / 2
                         color: (typeof Color !== "undefined") ? Color.mSurface : "#1e1e2e"
 
                         Rectangle {
                             anchors.left: parent.left
                             height: parent.height
-                            radius: 2
+                            radius: Style.radiusS / 2
                             color: (typeof Color !== "undefined") ? Color.mPrimary : "#3355ff"
                             width: {
                                 if (track.width <= 0) return 0;
@@ -210,7 +208,7 @@ Item {
                             ? ((typeof Color !== "undefined") ? Color.mPrimary : "#3355ff")
                             : ((typeof Color !== "undefined") ? Color.mOnPrimary : "#ffffff")
                         border.color: (typeof Color !== "undefined") ? Color.mPrimary : "#3355ff"
-                        border.width: 2
+                        border.width: Style.capsuleBorderWidth * 2
                     }
 
                     MouseArea {
@@ -228,7 +226,6 @@ Item {
                             let finalValue = Math.max(customSlider.minVal, Math.min(steppedValue, customSlider.maxVal));
                             
                             if (root.mainWidget && root.mainWidget.batteryThreshold !== finalValue) {
-                                customSlider.currentVal = finalValue;
                                 root.mainWidget.setBatteryThreshold(finalValue);
                             }
                         }
@@ -275,7 +272,7 @@ Item {
         NIcon {
             anchors.centerIn: parent
             icon: parent.icon
-            pointSize: 13
+            pointSize: Style.fontSizeS
             color: parent.active 
                 ? ((typeof Color !== "undefined") ? Color.mOnPrimary : "#ffffff") 
                 : (parent.containsMouse ? ((typeof Color !== "undefined") ? Color.mPrimary : "#3355ff") : ((typeof Color !== "undefined") ? Color.mOnSurfaceVariant : "#a6adc8"))
