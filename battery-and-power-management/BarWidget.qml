@@ -252,7 +252,7 @@ Item {
         onClicked: {
             root.updatePowerProfile();
             thresholdLoader.reload();
-            if (pluginApi?.openPanel) pluginApi.openPanel(root.screen, root);
+            pluginApi.openPanel(root.screen, root);
         }
     }
 }
