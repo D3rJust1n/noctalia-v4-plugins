@@ -1362,7 +1362,7 @@
     {
       "id": "nvibrant",
       "name": "NVibrant",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "official": false,
       "author": "NoFilterA1",
       "description": "Toggle NVIDIA digital vibrance (color saturation) via nvibrant.",
@@ -1374,7 +1374,7 @@
         "System",
         "Gaming"
       ],
-      "lastUpdated": "2026-05-08T13:25:33+02:00"
+      "lastUpdated": "2026-06-03T21:57:59+02:00"
     },
     {
       "id": "nvim-session-provider",
