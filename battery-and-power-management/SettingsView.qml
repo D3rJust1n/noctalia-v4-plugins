@@ -48,7 +48,7 @@ ColumnLayout {
     // All palette colors
     readonly property var noctaliaPalette: [
         Color.mPrimary, Color.mSecondary, Color.mTertiary, Color.mError,
-        Color.mSurface, Color.mSurfaceVariant, Color.mOutline 
+        Color.mSurface, Color.mSurfaceVariant, Color.mOutline
     ]
 
     Component.onCompleted: {
@@ -91,15 +91,15 @@ ColumnLayout {
 
             RowLayout {
                 spacing: Style.marginS
-                
+
                 Repeater {
                     id: powerSaverColor
                     model: root.noctaliaPalette
-                    
+
                     Rectangle {
-                        width: 28
-                        height: 28
-                        radius: 14
+                        //width: 28
+                        //height: 28
+                        radius: Style.radiusL
                         color: modelData
                         border.color: Qt.colorEqual(root.editColorPowerSaver, modelData) ? Color.mOnSurface : Color.mOutline
                         border.width: Qt.colorEqual(root.editColorPowerSaver, modelData) ? 3 : 1
@@ -138,15 +138,15 @@ ColumnLayout {
 
             RowLayout {
                 spacing: Style.marginS
-                
+
                 Repeater {
                     id: performanceColor
                     model: root.noctaliaPalette
-                    
+
                     Rectangle {
-                        width: 28
-                        height: 28
-                        radius: 14
+                        //width: 28
+                        //height: 28
+                        radius: Style.radiusL
                         color: modelData
                         border.color: Qt.colorEqual(root.editColorPerformance, modelData) ? Color.mOnSurface : Color.mOutline
                         border.width: Qt.colorEqual(root.editColorPerformance, modelData) ? 3 : 1
