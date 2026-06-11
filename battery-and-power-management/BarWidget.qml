@@ -22,6 +22,40 @@ Item {
     readonly property real barFontSize: Style.getBarFontSizeForScreen(root.screenName)
     readonly property string fixedFont: Settings.data?.ui?.fontFixed ?? "monospace"
 
+    //Power Profiles color
+    readonly property color colorPowerSaver: Color.mSecondary
+    readonly property color colorPerformance: Color.mError
+
+
+    property color profileBackgroundColor: {
+        if (mouseArea.containsMouse) {
+            return Color.mHover;
+        }
+
+        if (root.batStatus === pluginApi.tr("battery.status-charging")) {
+            return Color.mPrimary;
+        }
+
+        if (root.colorizeByProfile) {
+            if (root.currentProfile === "power-saver") return root.colorPowerSaver;
+            if (root.currentProfile === "performance") return root.colorPerformance;
+        }
+
+        return Style.capsuleColor;
+    }
+
+    property color profileForegroundColor: {
+        if (mouseArea.containsMouse || root.batStatus === pluginApi.tr("battery.status-charging")) {
+            return Color.mOnPrimary;
+        }
+        
+        if (root.colorizeByProfile && (root.currentProfile === "power-saver" || root.currentProfile === "performance")) {
+            return Color.mOnPrimary;
+        }
+        
+        return Color.mOnSurface;
+}
+
     property int batPercent: 0
     property real wattNum: 0.0
     property string batStatus: pluginApi.tr("battery.status-unknown")
@@ -34,6 +68,16 @@ Item {
     readonly property real contentHeight: capsuleHeight
     implicitWidth: contentWidth
     implicitHeight: Style.barHeight
+
+    property bool colorizeByProfile:
+        pluginApi?.pluginSettings?.colorizeByProfile ??
+        pluginApi?.manifest?.metadata?.defaultSettings?.colorizeByProfile ??
+        true
+
+    property bool showProfile:
+        pluginApi?.pluginSettings?.showProfile ??
+        pluginApi?.manifest?.metadata?.defaultSettings?.showProfile ??
+        true
 
     // ===== Helpers =====
 
@@ -214,7 +258,7 @@ Item {
         
         color: mouseArea.containsMouse 
             ? Color.mHover 
-            : (root.batStatus === pluginApi.tr("battery.status-charging") ? Color.mPrimary : Style.capsuleColor)
+            : (root.batStatus === pluginApi.tr("battery.status-charging") ? Color.mPrimary : root.profileBackgroundColor)
 
         border.color: root.batStatus === pluginApi.tr("battery.status-charging") ? Color.mPrimary : Style.capsuleBorderColor
         border.width: Style.capsuleBorderWidth
@@ -226,7 +270,7 @@ Item {
 
             NIcon {
                 icon: (root.batStatus === pluginApi.tr("battery.status-charging") || root.batStatus === pluginApi.tr("battery.status-full")) ? "battery-charging" : "battery-4"
-                color: mouseArea.containsMouse || root.batStatus === pluginApi.tr("battery.status-charging") ? Color.mOnPrimary : Color.mOnSurface
+                color: root.profileForegroundColor
             }
 
             NText {
@@ -234,7 +278,7 @@ Item {
                 pointSize: barFontSize
                 font.family: root.fixedFont
                 font.weight: Font.Bold
-                color: mouseArea.containsMouse || root.batStatus === pluginApi.tr("battery.status-charging") ? Color.mOnPrimary : Color.mOnSurface
+                color: root.profileForegroundColor
             }
         }
     }

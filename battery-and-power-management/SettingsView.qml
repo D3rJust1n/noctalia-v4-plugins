@@ -10,12 +10,12 @@ ColumnLayout {
     property var pluginApi: null
 
     property bool editColorizeByProfile:
-        pluginApi?.pluginSettings.colorizeByProfile ??
+        pluginApi?.pluginSettings?.colorizeByProfile ??
         pluginApi?.manifest?.metadata?.defaultSettings?.colorizeByProfile ??
         true
 
     property bool editShowProfile:
-        pluginApi?.pluginSettings.showProfile  ??
+        pluginApi?.pluginSettings?.showProfile  ??
         pluginApi?.manifest?.metadata?.defaultSettings?.showProfile ??
         true
 
@@ -31,9 +31,9 @@ ColumnLayout {
         Layout.fillWidth: true
         label: pluginApi?.tr("settings.dynamic-coloring")
         description: pluginApi?.tr("settings.dynamic-coloring-desc")
-        checked: root.editColorizeByStatus
+        checked: root.editColorizeByProfile
         onToggled: checked => {
-            root.editColorizeByStatus = checked
+            root.editColorizeByProfile = checked
             root.saveSettings()
         }
     }
